@@ -29,7 +29,6 @@ const url = "https://api.thecatapi.com/v1/breeds";
 //   try {
 //     const response = await fetch(url);
 //     const jsonData = await response.json();
-//     console.log(jsonData);
 
 //     jsonData.forEach((breed) => {
 //       const option = document.createElement("option");
@@ -48,16 +47,14 @@ const url = "https://api.thecatapi.com/v1/breeds";
 
 // async function breedSelectHandler(event) {
 //   Carousel.clear();
-//   console.log("working");
 //   const breedId = event.target.value;
-//   console.log(breedId, "breed id");
 
 //   const responseBreed = await fetch(
 //     `https://api.thecatapi.com/v1/images/search?breed_ids=${breedId}&limit=5`
 //   );
 //   const jsonData = await responseBreed.json();
 
-//   console.log("json", jsonData);
+//   //console.log("json", jsonData);
 
 //   jsonData.forEach((breed) => {
 //     // const imgTag = document.createElement("img");
@@ -70,7 +67,7 @@ const url = "https://api.thecatapi.com/v1/breeds";
 //     `https://api.thecatapi.com/v1/breeds/${breedId}`
 //   );
 //   const jsonBreedInfo = await breedInfo.json();
-//   console.log(jsonBreedInfo);
+//   //console.log(jsonBreedInfo);
 
 //   infoDump.innerHTML = "";
 
@@ -78,7 +75,7 @@ const url = "https://api.thecatapi.com/v1/breeds";
 //   info.innerHTML = `<h2>${jsonBreedInfo.name}</h2>
 //   <p>${jsonBreedInfo.description}</p>`;
 //   infoDump.appendChild(info);
-//   console.log(info);
+//   //console.log(info);
 // }
 
 /**
@@ -120,7 +117,8 @@ async function initialLoad() {
 }
 initialLoad();
 
-breedSelect.addEventListener("change", breedSelectHandler);
+breedSelect.onchange = breedSelectHandler;
+const info = document.createElement("div");
 
 async function breedSelectHandler(event) {
   Carousel.clear();
@@ -136,19 +134,23 @@ async function breedSelectHandler(event) {
   //const jsonData = await responseBreed.json()
   //console.log(responseBreed.data);
   responseBreed.data.forEach((breed) => {
+    console.log(breed);
     // const imgTag = document.createElement("img");
     // imgTag.setAttribute("src", breed.url)
-    const item = Carousel.createCarouselItem(breed.url, "", breedId);
+    const item = Carousel.createCarouselItem(breed.url, "", breed.id);
     Carousel.appendCarousel(item);
     Carousel.start();
   });
   const breedInfo = await axios.get(
-    `https://api.thecatapi.com/v1/breeds/${breedId}`
+    `https://api.thecatapi.com/v1/breeds/${breedId}`,
+    {
+      onDownloadProgress: updateProgress,
+    }
   );
   //const breedInfo = await breedInfo.json();
   //console.log(breedInfo);
   infoDump.innerHTML = "";
-  const info = document.createElement("div");
+
   info.innerHTML = `<h2>${breedInfo.data.name}</h2>
    <p>${breedInfo.data.description}</p>`;
   infoDump.appendChild(info);
@@ -171,10 +173,12 @@ async function breedSelectHandler(event) {
  * - Add a console.log statement to indicate when requests begin.
  * - As an added challenge, try to do this on your own without referencing the lesson material.
  */
+
 axios.interceptors.request.use((request) => {
   request.metadata = request.metadata || {};
-  progressBar.style.width = "0%";
   request.metadata.startTime = new Date().getTime();
+  progressBar.style.width = "0%"
+  document.body.style.cursor = "progress";
   return request;
 });
 axios.interceptors.response.use(
@@ -182,20 +186,21 @@ axios.interceptors.response.use(
     response.config.metadata.endTime = new Date().getTime();
     response.durationInMS =
       response.config.metadata.endTime - response.config.metadata.startTime;
-    console.log(`Request took ${response.durationInMS} milliseconds.`);
+    //console.log(`Request took ${response.durationInMS} milliseconds.`);
+    document.body.style.cursor = "default";
     return response;
   },
   (error) => {
     error.config.metadata.endTime = new Date().getTime();
     error.durationInMS =
       error.config.metadata.endTime - error.config.metadata.startTime;
-    console.log(`Request took ${response.durationInMS} milliseconds.`);
+    //console.log(`Request took ${response.durationInMS} milliseconds.`);
     throw error;
   }
 );
 function updateProgress(progressEvent) {
   progressBar.style.width = `${progressEvent.progress * 100}%`;
-  console.log(progressEvent.progress);
+  //console.log(progressEvent.progress);
 }
 /**
  * 6. Next, we'll create a progress bar to indicate the request is in progress.
@@ -230,19 +235,50 @@ function updateProgress(progressEvent) {
  *   you delete that favourite using the API, giving this function "toggle" functionality.
  * - You can call this function by clicking on the heart at the top right of any image.
  */
-console.log("this is the fav pic");
+// console.log("this is the fav pic");
 
 export async function favourite(imgId) {
-  const newFavourite = await fetch(
-    "https://api.thecatapi.com/v1/favourites", 
-        {
-            method: 'POST',
-            headers: { 'x-api-key': 'YOUR-KEY'} ,
-            body: rawBody
-        });
-  // const response = await axios.get("https://api.thecatapi.com/v1/favourites");
+  await axios.post("https://api.thecatapi.com/v1/favourites", {
+      image_id: imgId,
+      sub_id: "my-favs"
+    }, {
+      headers: { 'x-api-key': API_KEY }
+  })
+  .then(function (response) {
+    console.log(response);
+  })
+    .catch(function (error) {
+    //console.log(error);
+    if (error.response.data.includes("DUPLICATE_FAVOURITE")) {
+      deleteFavorite(imgId)
+    }
+  });
 }
 
+async function deleteFavorite(imgId) {
+  const favorites = await axios.get('https://api.thecatapi.com/v1/favourites?limit=20&sub_id=my-favs&order=DESC',{
+    headers:{
+        "content-type":"application/json",
+        'x-api-key': API_KEY
+    }
+  });
+
+  const favToDelete = favorites.data.filter(fav => {
+    if (fav.image_id === imgId) {
+      return fav;
+    }
+  });
+
+  await axios.delete(`https://api.thecatapi.com/v1/favourites/${favToDelete[0].id}`, {
+      headers: { 'x-api-key': API_KEY }
+  })
+  .then(function (response) {
+    console.log(response);
+  })
+  .catch(function (error) {
+    console.log(error);
+  });
+}
 
 /**
  * 9. Test your favourite() function by creating a getFavourites() function.
@@ -253,6 +289,26 @@ export async function favourite(imgId) {
  *    If that isn't in its own function, maybe it should be so you don't have to
  *    repeat yourself in this section.
  */
+
+async function getFavourites() {
+  Carousel.clear();
+  info.innerHTML = "";
+
+  const getFavs = await axios.get('https://api.thecatapi.com/v1/favourites?order=DESC&sub_id=my-favs', {
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': API_KEY
+    }
+  });
+
+  getFavs.data.forEach((breed) => {
+    const item = Carousel.createCarouselItem(breed.image.url, "", breed.image.id);
+    Carousel.appendCarousel(item);
+    Carousel.start();
+  });
+};
+
+getFavouritesBtn.onclick = getFavourites;
 
 /**
  * 10. Test your site, thoroughly!
